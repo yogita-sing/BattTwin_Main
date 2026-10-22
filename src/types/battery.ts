@@ -195,5 +195,91 @@ export interface CommitRecord {
     ambient_temp_c?: number;
     cooling_type?: string;
     is_vetoed?: boolean;
+    hierarchy_scope?: string;
   };
+}
+
+export type HierarchyScope = 'module_4s2p' | 'pack_12s2p';
+
+export interface PackRollupData {
+  series_modules: number;
+  total_cells: number;
+  nominal_voltage_v: number;
+  pack_capacity_ah: number;
+  nominal_energy_wh: number;
+  usable_energy_wh: number;
+  total_mass_g: number;
+  estimated_bom_cost_usd: number;
+  bms_architecture: 'distributed_slave_master' | 'centralized_single_afe';
+  bms_notes: string;
+  thermal_enclosure_type: string;
+  protection_chain: string[];
+}
+
+export interface FmeaFaultItem {
+  id: string;
+  name: string;
+  category: 'sensor' | 'connection' | 'thermal' | 'actuator';
+  description: string;
+  injected: boolean;
+  injected_value?: number | string;
+  unit?: string;
+  measured_reaction_ms: number;
+  allowed_ftti_ms: number;
+  safe_state_achieved: boolean;
+  diagnostic_coverage_pct: number;
+  rpn_score: number;
+  mitigation_strategy: string;
+}
+
+export interface EngineeringAssumption {
+  id: string;
+  name: string;
+  category: 'electrical' | 'thermal' | 'mechanical' | 'control' | 'economic';
+  value: number;
+  default_value: number;
+  unit: string;
+  valid_min: number;
+  valid_max: number;
+  source_label: '[Datasheet]' | '[Calculated]' | '[Assumption]' | '[Target]' | '[Estimate]';
+  owner: string;
+  dependent_models: string[];
+  is_stale: boolean;
+}
+
+export interface BenchDataPoint {
+  time_s: number;
+  c_rate: number;
+  measured_voltage_v: number;
+  predicted_voltage_v: number;
+  measured_temp_c: number;
+  predicted_temp_c: number;
+}
+
+export interface BenchValidationMetrics {
+  rmse_voltage_v: number;
+  mape_voltage_pct: number;
+  rmse_temp_c: number;
+  mape_temp_pct: number;
+  peak_temp_error_c: number;
+  dataset_source: string;
+  vsi_perturbation_predicted_delta_t: number;
+  vsi_perturbation_measured_delta_t: number;
+  status: 'concordant' | 'marginal' | 'divergent';
+}
+
+export interface ParetoCandidate {
+  id: string;
+  name: string;
+  cooling_type: string;
+  spacing_mm: number;
+  busbar_material: 'nickel' | 'copper';
+  derating_enabled: boolean;
+  usable_energy_wh: number;
+  peak_temperature_c: number;
+  charge_time_min: number;
+  mass_g: number;
+  cost_usd: number;
+  is_pareto_optimal: boolean;
+  trade_off_summary: string;
 }

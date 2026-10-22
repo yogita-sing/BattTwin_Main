@@ -1,31 +1,38 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Header } from './components/common/Header';
+import { HierarchySwitcher } from './components/common/HierarchySwitcher';
 import { ParameterControls } from './components/common/ParameterControls';
 import { BatteryCanvas3D } from './components/visualizer3d/BatteryCanvas3D';
 import { CircuitSchematic2D } from './components/visualizer2d/CircuitSchematic2D';
 import { CellInspector } from './components/common/CellInspector';
 import { StudentModePanel } from './components/student_mode/StudentModePanel';
 import { EngineerModePanel } from './components/engineer_mode/EngineerModePanel';
+import { CaseStudyLandingPage } from './components/landing/CaseStudyLandingPage';
 import {
   FullSimulationOutput,
   LearningChallenge,
   OptionComparisonItem,
   SimulationConditions,
   ModuleTopology,
+  HierarchyScope,
+  ParetoCandidate,
 } from './types/battery';
 import { defaultCell, runL2Simulation } from './services/physicsEngine';
 import { evaluateSafetyVeto } from './services/governanceEngine';
 import { detectCrossDomainConflicts } from './services/conflictEngine';
 import { computeVsiRanking } from './services/vsiEngine';
 import { compareOptions } from './services/tradeOffsEngine';
+import { computePackRollup } from './services/packRollupEngine';
 import { commitManager } from './services/commitManager';
 import { downloadEvidenceDossier } from './services/evidenceExport';
 import { learningChallenges } from './data/challenges';
-import { Box, Cpu } from 'lucide-react';
+import { Box, Cpu, AlertOctagon } from 'lucide-react';
 
 export const App: React.FC = () => {
+  const [viewMode, setViewMode] = useState<'landing' | 'studio'>('landing');
   const [mode, setMode] = useState<'student' | 'engineer'>('student');
   const [viewTab, setViewTab] = useState<'3d' | '2d'>('3d');
+  const [hierarchyScope, setHierarchyScope] = useState<HierarchyScope>('module_4s2p');
 
   // Simulation Parameters
   const [ambientTemp, setAmbientTemp] = useState<number>(35.0);
@@ -44,6 +51,7 @@ export const App: React.FC = () => {
   const [options, setOptions] = useState<OptionComparisonItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isExporting, setIsExporting] = useState<boolean>(false);
+  const [staleBanner, setStaleBanner] = useState<string[]>([]);
 
   // Run simulation whenever parameters change
   const runSimulation = useCallback(() => {
@@ -109,9 +117,10 @@ export const App: React.FC = () => {
           cooling_type: moduleTopo.thermal.cooling_type,
           peak_temp_c: kpis.peak_temperature_c,
           is_vetoed: veto_result.is_vetoed,
+          hierarchy_scope: hierarchyScope,
         },
         'Engineer',
-        `Simulation run: ${simConditions.operation_mode} at ${simConditions.c_rate}C`
+        `Simulation run: ${simConditions.operation_mode} at ${simConditions.c_rate}C [${hierarchyScope}]`
       );
 
       // 6. Compliance assertions check summary
@@ -137,29 +146,51 @@ export const App: React.FC = () => {
 
       setSimOutput(simData);
 
-      // 7. Multi-criteria Trade-offs
-      const tradeData = compareOptions(defaultCell, simConditions);
-      setOptions(tradeData);
-    } catch (error) {
-      console.error('Simulation error:', error);
+      // Also compute architectural options for Engineer Mode
+      const opts = compareOptions(defaultCell, simConditions);
+      setOptions(opts);
+    } catch (err) {
+      console.error('Simulation error:', err);
     } finally {
       setIsLoading(false);
     }
-  }, [ambientTemp, cRate, operationMode, rSpreadPct, coolingType, cellSpacing, deratingEnabled]);
+  }, [ambientTemp, cRate, operationMode, rSpreadPct, coolingType, cellSpacing, deratingEnabled, hierarchyScope]);
 
+  // Initial simulation run
   useEffect(() => {
     runSimulation();
   }, [runSimulation]);
 
-  // Handle counterfactual application from Student Mode
+  // Handle student counterfactual auto-apply
   const handleApplyCounterfactual = (paramName: string, value: number) => {
-    if (paramName === 'ambient_temp_c') setAmbientTemp(value);
     if (paramName === 'c_rate') setCRate(value);
-    if (paramName === 'derating_enabled') setDeratingEnabled(value === 1);
-    if (paramName === 'cooling_type') setCoolingType('pcm_matrix');
+    if (paramName === 'ambient_temp_c') setAmbientTemp(value);
+    if (paramName === 'cell_spacing_mm') {
+      setCellSpacing(value);
+      setCoolingType('natural_convection');
+    }
   };
 
-  // Export Signed Evidence Dossier
+  // Handle Pareto Candidate Selection
+  const handleApplyParetoCandidate = (candidate: ParetoCandidate) => {
+    setCoolingType(candidate.cooling_type);
+    if (candidate.cooling_type === 'pcm_matrix') {
+      setCellSpacing(1.5);
+    } else if (candidate.cooling_type === 'active_cooling') {
+      setCellSpacing(2.0);
+    } else if (candidate.cooling_type === 'natural_convection') {
+      setCellSpacing(3.0);
+    } else {
+      setCellSpacing(1.0);
+    }
+  };
+
+  // Compute Pack Roll-Up metrics
+  const packRollup = useMemo(() => {
+    return computePackRollup(simOutput?.kpis);
+  }, [simOutput?.kpis]);
+
+  // Export Signed Evidence Package
   const handleExportEvidence = () => {
     if (!simOutput) return;
     setIsExporting(true);
@@ -178,161 +209,217 @@ export const App: React.FC = () => {
     null;
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
+    <div className="min-h-screen bg-[#080B08] text-white flex flex-col font-sans selection:bg-[#B8FF24]/30 selection:text-[#B8FF24]">
       {/* Header */}
       <Header
+        viewMode={viewMode}
+        setViewMode={setViewMode}
         mode={mode}
         setMode={setMode}
         isVetoed={simOutput?.veto.is_vetoed || false}
         commitHash={simOutput?.commit_hash || '0000000'}
       />
 
-      {/* Main Content Area */}
-      <main className="flex-1 p-6 max-w-7xl mx-auto w-full space-y-6">
-        {/* Parameter Sliders */}
-        <ParameterControls
-          ambientTemp={ambientTemp}
-          setAmbientTemp={setAmbientTemp}
-          cRate={cRate}
-          setCRate={setCRate}
-          operationMode={operationMode}
-          setOperationMode={setOperationMode}
-          rSpreadPct={rSpreadPct}
-          setRSpreadPct={setRSpreadPct}
-          coolingType={coolingType}
-          setCoolingType={setCoolingType}
-          cellSpacing={cellSpacing}
-          setCellSpacing={setCellSpacing}
-          deratingEnabled={deratingEnabled}
-          setDeratingEnabled={setDeratingEnabled}
-          onSimulate={runSimulation}
-          isLoading={isLoading}
+      {/* When viewMode === 'landing', show full Case Study & Prototype Landing Page */}
+      {viewMode === 'landing' ? (
+        <CaseStudyLandingPage
+          onLaunchStudio={(targetMode) => {
+            if (targetMode) setMode(targetMode);
+            setViewMode('studio');
+          }}
         />
-
-        {/* Visualizer & Telemetry Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Left/Middle: Visualizer Canvas (3D or 2D) */}
-          <div className="lg:col-span-8 flex flex-col space-y-3">
-            {/* View Switcher Tabs */}
-            <div className="flex items-center space-x-2">
+      ) : (
+        <>
+          {/* Stale Model Invalidation Alert Banner (if assumptions were modified) */}
+          {staleBanner.length > 0 && (
+            <div className="bg-amber-950/80 border-b border-amber-500/40 px-6 py-2.5 text-xs font-mono text-amber-200 flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <AlertOctagon className="w-4 h-4 text-amber-400 flex-shrink-0 animate-pulse" />
+                <span>
+                  <strong>Assumption Invalidation Alert:</strong> Assumption modified. Downstream models{' '}
+                  <span className="text-[#B8FF24] font-bold">[{staleBanner.join(', ')}]</span> marked stale. Run recalculation to regenerate evidence.
+                </span>
+              </div>
               <button
-                onClick={() => setViewTab('3d')}
-                className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                  viewTab === '3d'
-                    ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
-                    : 'bg-slate-900 text-slate-400 hover:text-slate-200'
-                }`}
+                onClick={() => setStaleBanner([])}
+                className="text-amber-400 hover:text-white underline cursor-pointer"
               >
-                <Box className="w-3.5 h-3.5" />
-                <span>3D Exploded View</span>
-              </button>
-
-              <button
-                onClick={() => setViewTab('2d')}
-                className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                  viewTab === '2d'
-                    ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
-                    : 'bg-slate-900 text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                <Cpu className="w-3.5 h-3.5" />
-                <span>2D Circuit Ladder</span>
+                Dismiss
               </button>
             </div>
+          )}
 
-            <div className="h-[460px] w-full">
-              {viewTab === '3d' ? (
-                <BatteryCanvas3D
-                  cells={simOutput?.cells || []}
-                  selectedCellId={selectedCellId}
-                  onSelectCell={(cid) => setSelectedCellId(cid)}
-                  coolingType={coolingType}
-                  isVetoed={simOutput?.veto.is_vetoed || false}
-                />
-              ) : (
-                <CircuitSchematic2D
-                  cells={simOutput?.cells || []}
-                  selectedCellId={selectedCellId}
-                  onSelectCell={(cid) => setSelectedCellId(cid)}
-                  packVoltage={simOutput?.kpis.nominal_voltage_v || 14.4}
-                  packCurrent={
-                    simOutput?.cells.reduce((acc, c) => acc + c.current_a, 0) ? simOutput.cells.reduce((acc, c) => acc + c.current_a, 0) / 4 : 8.4
-                  }
-                />
-              )}
-            </div>
-          </div>
+          {/* Main Content Area */}
+          <main className="flex-1 p-4 sm:p-6 max-w-7xl mx-auto w-full space-y-6">
+            {/* Hierarchy Switcher (4S2P Module vs 12S2P Light-EV Pack) */}
+            <HierarchySwitcher
+              scope={hierarchyScope}
+              setScope={setHierarchyScope}
+              packRollup={packRollup}
+            />
 
-          {/* Right: Key Telemetry Cards & Selected Cell Inspector */}
-          <div className="lg:col-span-4 flex flex-col space-y-4">
-            {/* Summary KPI Strip */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-slate-900/90 p-3.5 rounded-2xl border border-slate-800 shadow-md">
-                <span className="text-[10px] text-slate-400 block uppercase font-mono">Peak Cell Temp</span>
-                <div className="flex items-baseline space-x-1.5 mt-0.5">
-                  <span
-                    className={`text-xl font-bold font-mono ${
-                      (simOutput?.kpis.peak_temperature_c || 0) >= 45.0 ? 'text-red-400' : 'text-cyan-300'
+            {/* Parameter Sliders */}
+            <ParameterControls
+              ambientTemp={ambientTemp}
+              setAmbientTemp={setAmbientTemp}
+              cRate={cRate}
+              setCRate={setCRate}
+              operationMode={operationMode}
+              setOperationMode={setOperationMode}
+              rSpreadPct={rSpreadPct}
+              setRSpreadPct={setRSpreadPct}
+              coolingType={coolingType}
+              setCoolingType={setCoolingType}
+              cellSpacing={cellSpacing}
+              setCellSpacing={setCellSpacing}
+              deratingEnabled={deratingEnabled}
+              setDeratingEnabled={setDeratingEnabled}
+              onSimulate={runSimulation}
+              isLoading={isLoading}
+            />
+
+            {/* Visualizer & Telemetry Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              {/* Left/Middle: Visualizer Canvas (3D or 2D) */}
+              <div className="lg:col-span-8 flex flex-col space-y-3">
+                {/* View Switcher Tabs */}
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => setViewTab('3d')}
+                    className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full text-xs font-mono font-medium transition-all cursor-pointer ${
+                      viewTab === '3d'
+                        ? 'bg-[#B8FF24] text-black font-bold shadow-[0_0_12px_rgba(184,255,36,0.3)]'
+                        : 'bg-[#0E1510] text-[#8A9A8C] border border-[#1E2D21] hover:text-white'
                     }`}
                   >
-                    {simOutput?.kpis.peak_temperature_c.toFixed(1) || '--'} °C
-                  </span>
-                  <span className="text-[10px] text-slate-500 font-mono">(Limit 45°)</span>
+                    <Box className="w-3.5 h-3.5" />
+                    <span>3D Exploded View</span>
+                  </button>
+
+                  <button
+                    onClick={() => setViewTab('2d')}
+                    className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full text-xs font-mono font-medium transition-all cursor-pointer ${
+                      viewTab === '2d'
+                        ? 'bg-[#B8FF24] text-black font-bold shadow-[0_0_12px_rgba(184,255,36,0.3)]'
+                        : 'bg-[#0E1510] text-[#8A9A8C] border border-[#1E2D21] hover:text-white'
+                    }`}
+                  >
+                    <Cpu className="w-3.5 h-3.5" />
+                    <span>2D Circuit Ladder</span>
+                  </button>
+                </div>
+
+                <div className={viewTab === '3d' ? 'h-[480px] w-full' : 'w-full'}>
+                  {viewTab === '3d' ? (
+                    <BatteryCanvas3D
+                      cells={simOutput?.cells || []}
+                      selectedCellId={selectedCellId}
+                      onSelectCell={(cid) => setSelectedCellId(cid)}
+                      coolingType={coolingType}
+                      isVetoed={simOutput?.veto.is_vetoed || false}
+                    />
+                  ) : (
+                    <CircuitSchematic2D
+                      cells={simOutput?.cells || []}
+                      selectedCellId={selectedCellId}
+                      onSelectCell={(cid) => setSelectedCellId(cid)}
+                      packVoltage={
+                        hierarchyScope === 'pack_12s2p'
+                          ? packRollup.nominal_voltage_v
+                          : simOutput?.kpis.nominal_voltage_v || 14.4
+                      }
+                      packCurrent={
+                        simOutput?.cells.reduce((acc, c) => acc + c.current_a, 0)
+                          ? simOutput.cells.reduce((acc, c) => acc + c.current_a, 0) / 4
+                          : 8.4
+                      }
+                    />
+                  )}
                 </div>
               </div>
 
-              <div className="bg-slate-900/90 p-3.5 rounded-2xl border border-slate-800 shadow-md">
-                <span className="text-[10px] text-slate-400 block uppercase font-mono">Cell Spread (ΔT)</span>
-                <div className="flex items-baseline space-x-1.5 mt-0.5">
-                  <span className="text-xl font-bold font-mono text-emerald-300">
-                    {simOutput?.kpis.temp_spread_delta_t_c.toFixed(1) || '--'} °C
-                  </span>
-                  <span className="text-[10px] text-slate-500 font-mono">(AIS ≤ 5°)</span>
+              {/* Right: Key Telemetry Cards & Selected Cell Inspector */}
+              <div className="lg:col-span-4 flex flex-col space-y-4">
+                {/* Summary KPI Strip */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-[#0E1510] p-3.5 rounded-2xl border border-[#1E2D21] shadow-xl">
+                    <span className="text-[10px] text-[#8A9A8C] block uppercase font-mono tracking-wider">Peak Cell Temp</span>
+                    <div className="flex items-baseline space-x-1.5 mt-0.5">
+                      <span
+                        className={`text-xl font-bold font-mono ${
+                          (simOutput?.kpis.peak_temperature_c || 0) >= 45.0 ? 'text-red-400' : 'text-[#B8FF24]'
+                        }`}
+                      >
+                        {simOutput?.kpis.peak_temperature_c.toFixed(1) || '--'} °C
+                      </span>
+                      <span className="text-[10px] text-[#8A9A8C] font-mono">(Limit 45°)</span>
+                    </div>
+                  </div>
+
+                  <div className="bg-[#0E1510] p-3.5 rounded-2xl border border-[#1E2D21] shadow-xl">
+                    <span className="text-[10px] text-[#8A9A8C] block uppercase font-mono tracking-wider">Cell Spread (ΔT)</span>
+                    <div className="flex items-baseline space-x-1.5 mt-0.5">
+                      <span className="text-xl font-bold font-mono text-white">
+                        {simOutput?.kpis.temp_spread_delta_t_c.toFixed(1) || '--'} °C
+                      </span>
+                      <span className="text-[10px] text-[#8A9A8C] font-mono">(AIS ≤ 5°)</span>
+                    </div>
+                  </div>
+
+                  <div className="bg-[#0E1510] p-3.5 rounded-2xl border border-[#1E2D21] shadow-xl">
+                    <span className="text-[10px] text-[#8A9A8C] block uppercase font-mono tracking-wider">
+                      {hierarchyScope === 'pack_12s2p' ? 'Pack Usable Energy' : 'Module Energy'}
+                    </span>
+                    <span className="text-xl font-bold font-mono text-[#B8FF24] block mt-0.5">
+                      {hierarchyScope === 'pack_12s2p'
+                        ? `${packRollup.usable_energy_wh.toFixed(1)} Wh`
+                        : `${simOutput?.kpis.usable_energy_wh.toFixed(1) || '120.9'} Wh`}
+                    </span>
+                  </div>
+
+                  <div className="bg-[#0E1510] p-3.5 rounded-2xl border border-[#1E2D21] shadow-xl">
+                    <span className="text-[10px] text-[#8A9A8C] block uppercase font-mono tracking-wider">
+                      {hierarchyScope === 'pack_12s2p' ? 'Pack Cost / Mass' : 'Module Cost / Mass'}
+                    </span>
+                    <span className="text-sm font-bold font-mono text-white block mt-1">
+                      {hierarchyScope === 'pack_12s2p'
+                        ? `$${packRollup.estimated_bom_cost_usd} | ${packRollup.total_mass_g}g`
+                        : `$${simOutput?.kpis.estimated_bom_cost_usd.toFixed(0)} | ${simOutput?.kpis.total_mass_g.toFixed(0)}g`}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Live Cell Inspector */}
+                <div className="flex-1">
+                  <CellInspector cell={selectedCell} />
                 </div>
               </div>
-
-              <div className="bg-slate-900/90 p-3.5 rounded-2xl border border-slate-800 shadow-md">
-                <span className="text-[10px] text-slate-400 block uppercase font-mono">Usable Energy</span>
-                <span className="text-xl font-bold font-mono text-emerald-400 block mt-0.5">
-                  {simOutput?.kpis.usable_energy_wh.toFixed(1) || '120.9'} Wh
-                </span>
-              </div>
-
-              <div className="bg-slate-900/90 p-3.5 rounded-2xl border border-slate-800 shadow-md">
-                <span className="text-[10px] text-slate-400 block uppercase font-mono">BOM Cost / Mass</span>
-                <span className="text-sm font-bold font-mono text-slate-200 block mt-1">
-                  ${simOutput?.kpis.estimated_bom_cost_usd.toFixed(0) || '60'} | {simOutput?.kpis.total_mass_g.toFixed(0) || '670'}g
-                </span>
-              </div>
             </div>
 
-            {/* Live Cell Inspector */}
-            <div className="flex-1">
-              <CellInspector cell={selectedCell} />
-            </div>
-          </div>
-        </div>
-
-        {/* Bottom Section: Mode specific panels */}
-        {mode === 'student' ? (
-          <StudentModePanel
-            challenges={challenges}
-            activeChallengeId={activeChallengeId}
-            onSelectChallenge={(id) => setActiveChallengeId(id)}
-            vetoResult={simOutput?.veto || { is_vetoed: false, counterfactuals: [] }}
-            onApplyCounterfactual={handleApplyCounterfactual}
-          />
-        ) : (
-          <EngineerModePanel
-            vsiRanking={simOutput?.vsi_ranking || []}
-            conflicts={simOutput?.conflicts || []}
-            options={options}
-            commitHash={simOutput?.commit_hash || '0000000'}
-            onExportEvidence={handleExportEvidence}
-            isExporting={isExporting}
-          />
-        )}
-      </main>
+            {/* Bottom Section: Mode specific panels */}
+            {mode === 'student' ? (
+              <StudentModePanel
+                challenges={challenges}
+                activeChallengeId={activeChallengeId}
+                onSelectChallenge={(id) => setActiveChallengeId(id)}
+                vetoResult={simOutput?.veto || { is_vetoed: false, counterfactuals: [] }}
+                onApplyCounterfactual={handleApplyCounterfactual}
+              />
+            ) : (
+              <EngineerModePanel
+                vsiRanking={simOutput?.vsi_ranking || []}
+                conflicts={simOutput?.conflicts || []}
+                options={options}
+                commitHash={simOutput?.commit_hash || '0000000'}
+                onExportEvidence={handleExportEvidence}
+                isExporting={isExporting}
+                onApplyParetoCandidate={handleApplyParetoCandidate}
+                onInvalidateModels={(models) => setStaleBanner(models)}
+              />
+            )}
+          </main>
+        </>
+      )}
     </div>
   );
 };

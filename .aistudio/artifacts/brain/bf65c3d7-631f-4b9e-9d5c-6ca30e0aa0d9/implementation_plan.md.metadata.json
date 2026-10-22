@@ -1,0 +1,6 @@
+{
+  "summary":  "Implementation plan for adopting the ZEN electric lime and dark obsidian visual design language, setting up shadcn project structure with @/components/ui path alias, installing GSAP and Lenis smooth scroll, creating the parallax-scrolling component, and restyling the BattTwin engineering platform to match the reference design.",
+  "updatedAt":  "2026-10-22T09:32:09.894574704Z",
+  "requestFeedback":  true,
+  "userFacing":  true
+}

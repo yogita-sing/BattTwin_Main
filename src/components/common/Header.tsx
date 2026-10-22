@@ -1,81 +1,122 @@
 import React from 'react';
-import { BatteryCharging, GraduationCap, Cpu, ShieldAlert, CheckCircle2 } from 'lucide-react';
+import { BatteryCharging, GraduationCap, Cpu, ShieldAlert, CheckCircle2, BookOpen } from 'lucide-react';
 
 interface HeaderProps {
+  viewMode: 'landing' | 'studio';
+  setViewMode: (v: 'landing' | 'studio') => void;
   mode: 'student' | 'engineer';
   setMode: (m: 'student' | 'engineer') => void;
   isVetoed: boolean;
   commitHash: string;
 }
 
-export const Header: React.FC<HeaderProps> = ({ mode, setMode, isVetoed, commitHash }) => {
+export const Header: React.FC<HeaderProps> = ({
+  viewMode,
+  setViewMode,
+  mode,
+  setMode,
+  isVetoed,
+  commitHash,
+}) => {
   return (
-    <header className="w-full bg-slate-950/80 backdrop-blur-xl border-b border-slate-800 sticky top-0 z-40 px-6 py-3.5 flex flex-wrap items-center justify-between gap-4">
+    <header className="w-full bg-[#080B08]/90 backdrop-blur-xl border-b border-[#1E2D21] sticky top-0 z-40 px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3 transition-colors">
       {/* Brand & Logo */}
-      <div className="flex items-center space-x-3.5">
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-600 via-blue-600 to-indigo-600 p-0.5 shadow-lg shadow-cyan-900/30">
-          <div className="w-full h-full bg-slate-950 rounded-[10px] flex items-center justify-center">
-            <BatteryCharging className="w-5 h-5 text-cyan-400" />
-          </div>
+      <div
+        onClick={() => setViewMode('landing')}
+        className="flex items-center space-x-3 cursor-pointer group"
+        title="View Case Study Overview"
+      >
+        <div className="w-9 h-9 rounded-xl bg-[#111712] border border-[#273B29] flex items-center justify-center shadow-lg shadow-black/40 group-hover:border-[#B8FF24]/50 transition-colors">
+          <BatteryCharging className="w-4 h-4 text-[#B8FF24] group-hover:scale-110 transition-transform" />
         </div>
         <div>
           <div className="flex items-center space-x-2">
-            <h1 className="text-lg font-black tracking-tight text-white flex items-center">
-              <span>Batt</span>
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-400">Twin</span>
+            <h1 className="text-base sm:text-lg font-black tracking-tight text-white flex items-center font-mono">
+              <span>BATT</span>
+              <span className="text-[#B8FF24]">TWIN</span>
             </h1>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-cyan-950/80 text-cyan-300 border border-cyan-800/80">
-              v1.0 Unified
+            <span className="text-[9px] font-mono px-2 py-0.5 rounded-full bg-[#111812] text-[#B8FF24] border border-[#233526]">
+              DIGITAL TWIN PRO
             </span>
           </div>
-          <p className="text-[11px] text-slate-400 hidden sm:block">
-            Cell-to-System Multi-Physics Design, Trade-Off & Deterministic Compliance Platform
+          <p className="text-[10px] text-[#8A9A8C] hidden sm:block">
+            Tata Elxsi TELIPORT Season 4 • Case Study 2 Platform
           </p>
         </div>
       </div>
 
-      {/* Mode Switcher: Student vs Engineer */}
-      <div className="flex items-center bg-slate-900 p-1 rounded-xl border border-slate-800 shadow-inner">
-        <button
-          onClick={() => setMode('student')}
-          className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-            mode === 'student'
-              ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-950/50'
-              : 'text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <GraduationCap className="w-4 h-4" />
-          <span>Student Mode (Interactive Lab)</span>
-        </button>
+      {/* Primary Navigation: Case Study Overview vs Interactive Studio */}
+      <div className="flex items-center space-x-2">
+        <div className="flex items-center bg-[#0E1510] p-1 rounded-full border border-[#1E2D21]">
+          <button
+            onClick={() => setViewMode('landing')}
+            className={`flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-mono transition-all cursor-pointer ${
+              viewMode === 'landing'
+                ? 'bg-[#B8FF24] text-black font-bold shadow-[0_0_12px_rgba(184,255,36,0.25)]'
+                : 'text-[#8A9A8C] hover:text-white'
+            }`}
+          >
+            <BookOpen className="w-3.5 h-3.5" />
+            <span>Problem & Prototype</span>
+          </button>
 
-        <button
-          onClick={() => setMode('engineer')}
-          className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-            mode === 'engineer'
-              ? 'bg-gradient-to-r from-cyan-600 to-blue-600 text-white shadow-md shadow-cyan-950/50'
-              : 'text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <Cpu className="w-4 h-4" />
-          <span>Engineer Mode (Design Studio)</span>
-        </button>
+          <button
+            onClick={() => setViewMode('studio')}
+            className={`flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-mono transition-all cursor-pointer ${
+              viewMode === 'studio'
+                ? 'bg-[#B8FF24] text-black font-bold shadow-[0_0_12px_rgba(184,255,36,0.25)]'
+                : 'text-[#8A9A8C] hover:text-white'
+            }`}
+          >
+            <Cpu className="w-3.5 h-3.5" />
+            <span>Interactive Studio</span>
+          </button>
+        </div>
+
+        {/* Persona Switcher when inside Studio */}
+        {viewMode === 'studio' && (
+          <div className="hidden md:flex items-center bg-[#0E1510] p-1 rounded-full border border-[#1E2D21]">
+            <button
+              onClick={() => setMode('student')}
+              className={`flex items-center space-x-1 px-2.5 py-1 rounded-full text-[11px] font-mono transition-all cursor-pointer ${
+                mode === 'student'
+                  ? 'bg-[#1E2D21] text-[#B8FF24] font-semibold border border-[#2A3E2D]'
+                  : 'text-[#8A9A8C] hover:text-white'
+              }`}
+            >
+              <GraduationCap className="w-3 h-3" />
+              <span>Student Lab</span>
+            </button>
+            <button
+              onClick={() => setMode('engineer')}
+              className={`flex items-center space-x-1 px-2.5 py-1 rounded-full text-[11px] font-mono transition-all cursor-pointer ${
+                mode === 'engineer'
+                  ? 'bg-[#1E2D21] text-[#B8FF24] font-semibold border border-[#2A3E2D]'
+                  : 'text-[#8A9A8C] hover:text-white'
+              }`}
+            >
+              <Cpu className="w-3 h-3" />
+              <span>Engineer Studio</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Safety Gate Status & Git-like SHA-256 Commit Badge */}
-      <div className="flex items-center space-x-3">
-        <div className="flex items-center space-x-2 px-3 py-1.5 rounded-xl bg-slate-900/90 border border-slate-800 text-xs font-mono">
-          <span className="text-slate-500">SHA-256:</span>
-          <span className="text-slate-300 font-semibold">{commitHash.slice(0, 7)}</span>
+      <div className="flex items-center space-x-2.5">
+        <div className="hidden sm:flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-[#0E1510] border border-[#1E2D21] text-[11px] font-mono">
+          <span className="text-[#8A9A8C]">SHA:</span>
+          <span className="text-[#B8FF24] font-semibold">{commitHash.slice(0, 7)}</span>
         </div>
 
         {isVetoed ? (
-          <div className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-red-950/60 border border-red-500/50 text-red-400 text-xs font-bold animate-pulse">
-            <ShieldAlert className="w-4 h-4" />
+          <div className="flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-red-950/70 border border-red-500/60 text-red-400 text-[11px] font-mono font-bold animate-pulse">
+            <ShieldAlert className="w-3.5 h-3.5" />
             <span>SAFETY VETO</span>
           </div>
         ) : (
-          <div className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-emerald-950/60 border border-emerald-500/50 text-emerald-400 text-xs font-bold">
-            <CheckCircle2 className="w-4 h-4" />
+          <div className="flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-[#112014] border border-[#B8FF24]/60 text-[#B8FF24] text-[11px] font-mono font-bold shadow-[0_0_10px_rgba(184,255,36,0.15)]">
+            <CheckCircle2 className="w-3.5 h-3.5" />
             <span>COMPLIANT</span>
           </div>
         )}

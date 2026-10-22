@@ -75,27 +75,27 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Persona Switcher when inside Studio */}
         {viewMode === 'studio' && (
-          <div className="hidden md:flex items-center bg-[#0E1510] p-1 rounded-full border border-[#1E2D21]">
+          <div className="flex items-center bg-[#0E1510] p-1 rounded-full border border-[#1E2D21]">
             <button
               onClick={() => setMode('student')}
-              className={`flex items-center space-x-1 px-2.5 py-1 rounded-full text-[11px] font-mono transition-all cursor-pointer ${
+              className={`flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-mono transition-all cursor-pointer ${
                 mode === 'student'
-                  ? 'bg-[#1E2D21] text-[#B8FF24] font-semibold border border-[#2A3E2D]'
+                  ? 'bg-[#182B1B] text-[#B8FF24] font-bold border border-[#B8FF24]/40 shadow-[0_0_10px_rgba(184,255,36,0.2)]'
                   : 'text-[#8A9A8C] hover:text-white'
               }`}
             >
-              <GraduationCap className="w-3 h-3" />
+              <GraduationCap className="w-3.5 h-3.5" />
               <span>Student Lab</span>
             </button>
             <button
               onClick={() => setMode('engineer')}
-              className={`flex items-center space-x-1 px-2.5 py-1 rounded-full text-[11px] font-mono transition-all cursor-pointer ${
+              className={`flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-mono transition-all cursor-pointer ${
                 mode === 'engineer'
-                  ? 'bg-[#1E2D21] text-[#B8FF24] font-semibold border border-[#2A3E2D]'
+                  ? 'bg-[#182B1B] text-[#B8FF24] font-bold border border-[#B8FF24]/40 shadow-[0_0_10px_rgba(184,255,36,0.2)]'
                   : 'text-[#8A9A8C] hover:text-white'
               }`}
             >
-              <Cpu className="w-3 h-3" />
+              <Cpu className="w-3.5 h-3.5" />
               <span>Engineer Studio</span>
             </button>
           </div>

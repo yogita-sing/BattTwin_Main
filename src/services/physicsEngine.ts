@@ -5,6 +5,7 @@ import {
   CellState,
   TimeSeriesPoint,
   SummaryKPIs,
+  L0ScreeningResult,
 } from '../types/battery';
 
 export const defaultCell: CellDefinition = {
@@ -387,3 +388,69 @@ export function runL2Simulation(
 
   return [cell_states, time_series, kpis];
 }
+
+/**
+ * L0 Analytical Screening (< 1s execution)
+ * Provides instantaneous first-order physics bounds:
+ * - Module electrical sizing (14.4 V nominal, 8.4 Ah, 120.96 Wh)
+ * - Adiabatic thermal upper bound: ΔT = Q_total / C_th
+ * - PCM latent sizing requirement
+ */
+export function runL0Screening(
+  cell: CellDefinition = defaultCell,
+  module: ModuleTopology = defaultModule,
+  c_rate: number = 1.0
+): L0ScreeningResult {
+  const startTime = performance.now();
+  const n_series = module.series_count;
+  const n_parallel = module.parallel_count;
+  const n_total_cells = n_series * n_parallel;
+
+  const nominal_voltage_v = n_series * cell.nominal_voltage_v; // 14.4 V
+  const nominal_capacity_ah = n_parallel * cell.nominal_capacity_ah; // 8.4 Ah
+  const nominal_energy_wh = Math.round(nominal_voltage_v * nominal_capacity_ah * 100) / 100; // 120.96 Wh
+
+  // Current per cell at nominal C-rate: I_cell = Q_cell * C-rate
+  const i_cell_a = cell.nominal_capacity_ah * c_rate; // 4.2 A
+  const r_cell_ohm = cell.internal_resistance_mohm / 1000.0; // 0.012 Ohm
+
+  // Joule heating per cell: P = I^2 * R
+  const heat_per_cell_w = Math.pow(i_cell_a, 2) * r_cell_ohm; // ~0.2117 W
+  const duration_1h_s = 3600.0 / Math.max(c_rate, 0.1);
+  const total_heat_per_cell_1h_j = heat_per_cell_w * duration_1h_s; // ~762 J
+
+  // Cell thermal mass: C_th = m * Cp
+  const cell_mass_kg = cell.mass_g / 1000.0; // 0.07 kg
+  const cell_heat_capacity_j_per_k = cell_mass_kg * cell.specific_heat_capacity_j_kg_k; // 66.5 J/K
+
+  // Adiabatic temperature rise (worst case zero dissipation)
+  const adiabatic_temp_rise_k = total_heat_per_cell_1h_j / cell_heat_capacity_j_per_k; // ~11.46 K
+
+  // Total module heat over full discharge
+  const total_module_heat_j = n_total_cells * total_heat_per_cell_1h_j; // ~6096 J
+
+  // PCM mass needed to absorb full adiabatic heat buffer
+  const pcm_latent_j_per_g = module.thermal.pcm.latent_heat_j_per_g; // 150 J/g
+  const pcm_mass_needed_g = Math.round((total_module_heat_j / pcm_latent_j_per_g) * 10) / 10; // ~40.6 g
+
+  // Module mass estimate
+  const busbar_mass_g = module.busbar.material === 'copper' ? 25.0 : 15.0;
+  const pcm_mass_g = module.thermal.cooling_type === 'pcm_matrix' ? module.thermal.pcm.mass_g : 0.0;
+  const module_mass_g = n_total_cells * cell.mass_g + 60.0 + module.thermal.cell_spacing_mm * 12.0 + busbar_mass_g + pcm_mass_g;
+
+  const executionTimeMs = performance.now() - startTime;
+
+  return {
+    nominal_voltage_v,
+    nominal_capacity_ah,
+    nominal_energy_wh,
+    heat_per_cell_w: Math.round(heat_per_cell_w * 1000) / 1000,
+    total_heat_1h_j: Math.round(total_module_heat_j),
+    cell_heat_capacity_j_per_k: Math.round(cell_heat_capacity_j_per_k * 10) / 10,
+    adiabatic_temp_rise_k: Math.round(adiabatic_temp_rise_k * 10) / 10,
+    pcm_mass_needed_g,
+    module_mass_g: Math.round(module_mass_g * 10) / 10,
+    execution_time_ms: Math.round(executionTimeMs * 100) / 100,
+  };
+}
+

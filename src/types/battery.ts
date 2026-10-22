@@ -283,3 +283,17 @@ export interface ParetoCandidate {
   is_pareto_optimal: boolean;
   trade_off_summary: string;
 }
+
+export interface L0ScreeningResult {
+  nominal_voltage_v: number;
+  nominal_capacity_ah: number;
+  nominal_energy_wh: number;
+  heat_per_cell_w: number;
+  total_heat_1h_j: number;
+  cell_heat_capacity_j_per_k: number;
+  adiabatic_temp_rise_k: number;
+  pcm_mass_needed_g: number;
+  module_mass_g: number;
+  execution_time_ms: number;
+}
+

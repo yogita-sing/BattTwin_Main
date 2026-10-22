@@ -41,17 +41,17 @@ export function evaluateSafetyVeto(
       )} °C. Lithium plating and accelerated degradation risk.`;
 
       // Counterfactual Fix 1: Reduce Ambient Temperature
-      const needed_ambient = Math.max(
-        20.0,
-        sim.ambient_temp_c - (kpis.peak_temperature_c - cell.max_charge_temp_c + 2.0)
-      );
+      // Respects 5 °C platform safety veto margin (target 40.0 °C) and self-heating ΔT
+      const temp_rise = Math.max(2.0, kpis.peak_temperature_c - sim.ambient_temp_c);
+      const target_peak_t = cell.max_charge_temp_c - cell.temp_veto_margin_c; // 40.0 °C
+      const needed_ambient = Math.min(35.0, Math.max(20.0, target_peak_t - temp_rise));
       counterfactuals.push({
         description: 'Lower charging ambient design point',
         parameter_name: 'ambient_temp_c',
         current_value: sim.ambient_temp_c,
         recommended_value: Math.round(needed_ambient * 10) / 10,
         unit: '°C',
-        physics_rationale: `Directly lowers baseline thermal reservoir so peak stays under ${cell.max_charge_temp_c} °C.`,
+        physics_rationale: `Lowers baseline thermal reservoir to allow for self-heating and keep peak temperature under 40.0 °C (${cell.temp_veto_margin_c} °C veto margin).`,
       });
 
       // Counterfactual Fix 2: Reduce Charge C-rate

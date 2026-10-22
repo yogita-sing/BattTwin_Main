@@ -1,0 +1,8 @@
+{
+  "name": "BattTwin",
+  "description": "Digital Battery Design & Compliance Platform - Cell-to-system multi-physics simulation, deterministic safety veto, and cross-domain conflict detector.",
+  "permissions": [],
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
